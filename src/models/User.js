@@ -12,7 +12,13 @@ const user = Schema({
   pass: {
     type: String,
     required: [true, "Password required"]
-  }
+  },
+  tasks: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Task"
+    }
+  ]
 }, { versionKey: false, timestamps: true }
 );
 

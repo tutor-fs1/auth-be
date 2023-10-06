@@ -7,6 +7,7 @@ mongoose.Promise = global.Promise;
 require('./src/pass-config');
 const jwt = require('jsonwebtoken')
 const passport = require('passport');
+const Task = require('./src/models/Task');
 
 const mongoDB = process.env.MONGO_URL;
 const secret = process.env.SECRET;
@@ -29,6 +30,11 @@ app.get('/', (req, res) => {
 
 app.post('/register', async (req, res) => {
   const { email, pass } = req.body;
+  const user = await User.findOne({ email });
+  if (user) {
+    res.status(401).json({ error: true, message: "Email already registered" });
+    return;
+  }
   const createdUser = new User({ email, pass });
   createdUser.setPass(pass);
   await createdUser.save();
@@ -38,21 +44,23 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
   const { email, pass } = req.body;
   const user = await User.findOne({ email });
+  if (!user) {
+    res.status(401).json({ error: true, message: "Email or pass is wrong" });
+  }
   const isSamePass = user.isSamePass(pass);
   if (isSamePass) {
-    const payload = {
+    const userData = {
       id: user.id,
       email: user.email,
-      admin: false
+      admin: false,
+
     }
 
-    const token = jwt.sign(payload, secret, { expiresIn: '1h' });
+    const token = jwt.sign(userData, secret, { expiresIn: '1h' });
     res.json({
       status: 'success',
       code: 200,
-      data: {
-        token,
-      },
+      user: { ...userData, token }
     })
   } else {
     res.status(401).json({ error: true, message: "Email or pass is wrong" });
@@ -74,14 +82,19 @@ const auth = (req, res, next) => {
   })(req, res, next);
 }
 
-
-app.get('/tasks', auth, (req, res, next) => {
-  const { username } = req.user;
-  res.json({
-    status: 'success',
-    code: 200,
-    data: {
-      message: `Authorization was successful: ${username}`,
-    },
-  })
+// de fiecare data cand introducem un nou task, trimitem si id-ul userului
+app.post('/tasks', auth, async (req, res, next) => {
+  const { text, userId } = req.body;
+  const newTask = await Task.create({ text, userId });
+  res.json(newTask);
 })
+
+// apoi putem sa gasim relatia in functie de ce informatii avem
+// daca avem id-ul userului:
+// const user = { _id: '123' }
+// const userTasks = Task.find({ userId: user._id });
+// va returna un array cu toate taskurile acestui user
+//
+// daca avem taskul si dorim userul care l-a creeat
+// const task = { _id: '456', text: 'asdada', userId: '789' }
+// const user = User.findById(task.userId);
