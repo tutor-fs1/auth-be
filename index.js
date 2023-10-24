@@ -3,6 +3,7 @@ const cors = require('cors');
 const User = require('./src/models/User');
 require('dotenv').config();
 const mongoose = require('mongoose');
+const nodemailer = require('nodemailer');
 mongoose.Promise = global.Promise;
 require('./src/pass-config');
 const jwt = require('jsonwebtoken');
@@ -12,6 +13,9 @@ const path = require('path');
 const fs = require('fs').promises;
 const uploadDir = path.join(process.cwd(), 'temp_files');
 const storeImage = path.join(process.cwd(), 'images');
+
+const emailAddress = process.env.EMAIL;
+const emailPass = process.env.PASS;
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -68,6 +72,34 @@ app.listen(port, () => {
 
 app.get('/', (req, res) => {
   res.send('Functioneaza!');
+});
+
+app.get('/testemail', (req, res) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailAddress,
+      pass: emailPass
+    }
+  });
+
+  const mailOptions = {
+    from: emailAddress,
+    to: 'andrei.kantor@gmail.com',
+    subject: 'Testam emailul',
+    text: 'Dudes, we really need your money.'
+  };
+
+  // transporter.sendMail(mailOptions, function (error, info) {
+  //   if (error) {
+  //     console.log(error);
+  //   } else {
+  //     console.log('Email sent: ' + info.response);
+  //   }
+  // });
+
+
+
 });
 
 app.post('/register', async (req, res) => {
