@@ -7,6 +7,9 @@ const task = Schema({
   text: {
     type: String
   },
+  image: {
+    type: String
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: "User"

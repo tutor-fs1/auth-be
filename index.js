@@ -5,8 +5,34 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
 require('./src/pass-config');
-const jwt = require('jsonwebtoken')
+const jwt = require('jsonwebtoken');
 const passport = require('passport');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
+const uploadDir = path.join(process.cwd(), 'temp_files');
+const storeImage = path.join(process.cwd(), 'images');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname.toLowerCase().split(' ').join('-'));
+  },
+  limits: {
+    fileSize: 1048576,
+  },
+});
+
+
+const upload = multer({
+  storage: storage,
+});
+
+
+
+
 const Task = require('./src/models/Task');
 
 const mongoDB = process.env.MONGO_URL;
@@ -15,6 +41,7 @@ const secret = process.env.SECRET;
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 const port = process.env.PORT || 5000;
 
 app.listen(port, () => {
@@ -23,6 +50,21 @@ app.listen(port, () => {
     console.log('Ne-am conectat la baza de date');
   });
 });
+
+// app.post('/upload', upload.single('numeinput'), async (req, res, next) => {
+//   const { nume } = req.body;
+//   const { path: temporaryName, originalname } = req.file;
+//   // res.json({ temporaryName, originalname });
+//   // console.log()
+//   // const fileName = path.join(storeImage, originalname);
+//   // try {
+//   //   await fs.rename(temporaryName, fileName);
+//   // } catch (err) {
+//   //   await fs.unlink(temporaryName);
+//   //   return next(err);
+//   // }
+//   // res.json({ description, message: 'Fișierul a fost încărcat cu succes', status: 200 });
+// });
 
 app.get('/', (req, res) => {
   res.send('Functioneaza!');
@@ -83,11 +125,53 @@ const auth = (req, res, next) => {
 }
 
 // de fiecare data cand introducem un nou task, trimitem si id-ul userului
-app.post('/tasks', auth, async (req, res, next) => {
+app.get('/tasks', auth, async (req, res) => {
+  const tasks = await Task.find();
+  res.json(tasks);
+});
+
+app.post('/tasks', [auth, upload.single('taskImage')], async (req, res) => {
   const { text, userId } = req.body;
   const newTask = await Task.create({ text, userId });
-  res.json(newTask);
-})
+  console.log(newTask._id);
+  // const newFileName = 
+  if (!req.file) {
+    return res.json(newTask);
+  }
+  const { path: temporaryName, originalname } = req.file;
+  // din string fac array despartit de puncte
+  let numeOriginalFaraExtensie = originalname.split('.');
+  // sterg ultimul item din array (adica extensia fisierului)
+  numeOriginalFaraExtensie.pop();
+  // fac aceleasi transformari ale stringului ca in configuratia multer de mai sus
+  numeOriginalFaraExtensie = numeOriginalFaraExtensie.join('.').toLowerCase().split(' ').join('-');
+  const numeNou = temporaryName.replace(numeOriginalFaraExtensie, newTask._id);
+  await fs.rename(temporaryName, numeNou);
+  newTask.image = numeNou;
+  await newTask.save();
+  return res.json(newTask);
+  // return res.json({...newTask,});
+  // res.json({ numeNou });
+
+  // if (temporaryName) {
+  //   return res.json({ 'message': 'are imagine' });
+  // } else {
+  //   return res.json({ 'message': 'NU are imagine' });
+  // }
+  // const newTask = await Task.create({ text, userId });
+  // res.json(newTask);
+});
+
+// app.post('/upload', upload.single('numeinput'), async (req, res, next) => {
+//   const { nume } = req.body;
+//   const { path: temporaryName, originalname } = req.file;
+
+app.delete('/tasks/:taskId', auth, async (req, res) => {
+  const { taskId } = req.params;
+  const deletedTask = await Task.deleteOne({ _id: taskId })
+  // const newTask = await Task.create({ text, userId });
+  res.json({ 'message': 'deleted' });
+});
 
 // apoi putem sa gasim relatia in functie de ce informatii avem
 // daca avem id-ul userului:
